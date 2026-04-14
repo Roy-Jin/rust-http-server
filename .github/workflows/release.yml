@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag name
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: |
+            x86_64-unknown-linux-gnu
+            aarch64-unknown-linux-gnu
+            x86_64-pc-windows-msvc
+            aarch64-pc-windows-msvc
+            x86_64-apple-darwin
+            aarch64-apple-darwin
+
+      - name: Install Cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Create release directory
+        run: mkdir -p release
+
+      # Build for Linux platforms
+      - name: Build Linux x86_64
+        run: |
+          cross build --release --target x86_64-unknown-linux-gnu
+          cp target/x86_64-unknown-linux-gnu/release/http-server release/http-server-linux-x86_64
+
+      - name: Build Linux ARM64
+        run: |
+          cross build --release --target aarch64-unknown-linux-gnu
+          cp target/aarch64-unknown-linux-gnu/release/http-server release/http-server-linux-aarch64
+
+      # Build for Windows platforms
+      - name: Build Windows x86_64
+        run: |
+          cross build --release --target x86_64-pc-windows-msvc
+          cp target/x86_64-pc-windows-msvc/release/http-server.exe release/http-server-windows-x86_64.exe
+
+      - name: Build Windows ARM64
+        run: |
+          cross build --release --target aarch64-pc-windows-msvc
+          cp target/aarch64-pc-windows-msvc/release/http-server.exe release/http-server-windows-arm64.exe
+
+      # Build for macOS platforms
+      - name: Build macOS Intel
+        run: |
+          cross build --release --target x86_64-apple-darwin
+          cp target/x86_64-apple-darwin/release/http-server release/http-server-macos-x86_64
+
+      - name: Build macOS Apple Silicon
+        run: |
+          cross build --release --target aarch64-apple-darwin
+          cp target/aarch64-apple-darwin/release/http-server release/http-server-macos-aarch64
+
+      # Create and upload release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_tag.outputs.TAG_NAME }}
+          name: Release ${{ steps.get_tag.outputs.TAG_NAME }}
+          body: |
+            ## 🚀 Release ${{ steps.get_tag.outputs.TAG_NAME }}
+
+            | Platform | Architecture | Binary Name | Download |
+            |----------|--------------|-------------|----------|
+            | Linux | x86_64 | `http-server-linux-x86_64` | [Download](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.TAG_NAME }}/http-server-linux-x86_64) |
+            | Linux | ARM64 | `http-server-linux-aarch64` | [Download](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.TAG_NAME }}/http-server-linux-aarch64) |
+            | Windows | x86_64 | `http-server-windows-x86_64.exe` | [Download](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.TAG_NAME }}/http-server-windows-x86_64.exe) |
+            | Windows | ARM64 | `http-server-windows-arm64.exe` | [Download](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.TAG_NAME }}/http-server-windows-arm64.exe) |
+            | macOS | Intel (x86_64) | `http-server-macos-x86_64` | [Download](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.TAG_NAME }}/http-server-macos-x86_64) |
+            | macOS | Apple Silicon (ARM64) | `http-server-macos-aarch64` | [Download](https://github.com/${{ github.repository }}/releases/download/${{ steps.get_tag.outputs.TAG_NAME }}/http-server-macos-aarch64) |
+
+          files: |
+            release/http-server-linux-x86_64
+            release/http-server-linux-aarch64
+            release/http-server-windows-x86_64.exe
+            release/http-server-windows-arm64.exe
+            release/http-server-macos-x86_64
+            release/http-server-macos-aarch64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

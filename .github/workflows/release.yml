@@ -53,12 +53,12 @@ jobs:
       # Build for Windows platforms
       - name: Build Windows x86_64
         run: |
-          cross build --release --target x86_64-pc-windows-msvc
+          cargo build --release --target x86_64-pc-windows-msvc
           cp target/x86_64-pc-windows-msvc/release/http-server.exe release/http-server-windows-x86_64.exe
 
       - name: Build Windows ARM64
         run: |
-          cross build --release --target aarch64-pc-windows-msvc
+          cargo build --release --target aarch64-pc-windows-msvc
           cp target/aarch64-pc-windows-msvc/release/http-server.exe release/http-server-windows-arm64.exe
 
       # Build for macOS platforms

@@ -9,8 +9,103 @@ permissions:
   contents: write
 
 jobs:
+  build:
+    name: Build ${{ matrix.platform }} ${{ matrix.architecture }}
+    strategy:
+      matrix:
+        include:
+          # Linux platforms
+          - os: ubuntu-latest
+            platform: linux
+            architecture: x86_64
+            target: x86_64-unknown-linux-gnu
+            cross: false
+            binary_name: http-server-linux-x86_64
+            binary_path: target/x86_64-unknown-linux-gnu/release/http-server
+            
+          - os: ubuntu-latest
+            platform: linux
+            architecture: aarch64
+            target: aarch64-unknown-linux-gnu
+            cross: true
+            binary_name: http-server-linux-aarch64
+            binary_path: target/aarch64-unknown-linux-gnu/release/http-server
+            
+          # Windows platforms
+          - os: windows-latest
+            platform: windows
+            architecture: x86_64
+            target: x86_64-pc-windows-msvc
+            cross: false
+            binary_name: http-server-windows-x86_64.exe
+            binary_path: target\x86_64-pc-windows-msvc\release\http-server.exe
+            
+          - os: windows-latest
+            platform: windows
+            architecture: aarch64
+            target: aarch64-pc-windows-msvc
+            cross: false
+            binary_name: http-server-windows-arm64.exe
+            binary_path: target\aarch64-pc-windows-msvc\release\http-server.exe
+            
+          # macOS platforms
+          - os: macos-latest
+            platform: macos
+            architecture: x86_64
+            target: x86_64-apple-darwin
+            cross: false
+            binary_name: http-server-macos-x86_64
+            binary_path: target/x86_64-apple-darwin/release/http-server
+            
+          - os: macos-latest
+            platform: macos
+            architecture: aarch64
+            target: aarch64-apple-darwin
+            cross: false
+            binary_name: http-server-macos-aarch64
+            binary_path: target/aarch64-apple-darwin/release/http-server
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+      
+      - name: Install Cross for cross-compilation
+        if: matrix.cross == true
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      
+      - name: Build binary
+        run: |
+          ${{ matrix.cross == true && 'cross' || 'cargo' }} build --release --target ${{ matrix.target }}
+        shell: bash
+      
+      - name: Create release directory
+        run: mkdir -p release
+        
+      - name: Copy binary to release directory (Linux/macOS)
+        if: matrix.os != 'windows'
+        run: cp "${{ matrix.binary_path }}" "release/${{ matrix.binary_name }}"
+        
+      - name: Copy binary to release directory (Windows)
+        if: matrix.os == 'windows'
+        run: copy "${{ matrix.binary_path }}" "release\\${{ matrix.binary_name }}"
+        shell: cmd
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.binary_name }}
+          path: release/${{ matrix.binary_name }}
+
   release:
-    name: Build & Release
+    name: Create Release
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -22,57 +117,15 @@ jobs:
         id: get_tag
         run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v3
         with:
-          targets: |
-            x86_64-unknown-linux-gnu
-            aarch64-unknown-linux-gnu
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
-            x86_64-apple-darwin
-            aarch64-apple-darwin
+          path: release
+          merge-multiple: true
 
-      - name: Install Cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Create release directory
-        run: mkdir -p release
-
-      # Build for Linux platforms
-      - name: Build Linux x86_64
-        run: |
-          cross build --release --target x86_64-unknown-linux-gnu
-          cp target/x86_64-unknown-linux-gnu/release/http-server release/http-server-linux-x86_64
-
-      - name: Build Linux ARM64
-        run: |
-          cross build --release --target aarch64-unknown-linux-gnu
-          cp target/aarch64-unknown-linux-gnu/release/http-server release/http-server-linux-aarch64
-
-      # Build for Windows platforms
-      - name: Build Windows x86_64
-        run: |
-          cargo build --release --target x86_64-pc-windows-msvc
-          cp target/x86_64-pc-windows-msvc/release/http-server.exe release/http-server-windows-x86_64.exe
-
-      - name: Build Windows ARM64
-        run: |
-          cargo build --release --target aarch64-pc-windows-msvc
-          cp target/aarch64-pc-windows-msvc/release/http-server.exe release/http-server-windows-arm64.exe
-
-      # Build for macOS platforms
-      - name: Build macOS Intel
-        run: |
-          cross build --release --target x86_64-apple-darwin
-          cp target/x86_64-apple-darwin/release/http-server release/http-server-macos-x86_64
-
-      - name: Build macOS Apple Silicon
-        run: |
-          cross build --release --target aarch64-apple-darwin
-          cp target/aarch64-apple-darwin/release/http-server release/http-server-macos-aarch64
-
-      # Create and upload release
+      - name: List downloaded files
+        run: ls -laR release
+        
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:

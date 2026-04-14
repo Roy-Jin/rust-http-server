@@ -31,4 +31,7 @@ pub struct Args {
 
     #[arg(short, long)]
     pub version: bool,
+
+    #[arg(short, long)]
+    pub open: bool,
 }

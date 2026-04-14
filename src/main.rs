@@ -57,6 +57,7 @@ async fn main() {
         println!("        --no-cors               Disable CORS");
         println!("        --no-gzip               Disable GZIP compression");
         println!("        --not-found-page <PATH> Custom 404 page [default: 404.html]");
+        println!("    -o, --open                  Open browser automatically");
         println!("    -h, --help                  Print help information");
         println!("    -v, --version               Print version information");
         println!();
@@ -103,6 +104,13 @@ async fn main() {
 
     let local_addr = listener.local_addr().unwrap();
     print_startup_info(&args, &args.root, &root, local_addr);
+
+    if args.open {
+        let url = format!("http://localhost:{}", local_addr.port());
+        if let Err(e) = open::that(&url) {
+            eprintln!("Failed to open browser: {}", e);
+        }
+    }
 
     axum::serve(listener, app).await.expect("Server failed");
 }

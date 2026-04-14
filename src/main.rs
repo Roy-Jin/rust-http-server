@@ -94,7 +94,7 @@ async fn main() {
 
     let listener = match listener_result {
         Ok(l) => l,
-        Err(e) if args.port == 80 => {
+        Err(_e) if args.port == 80 => {
             println!("Port 80 requires elevated privileges. Trying port 8080 instead...");
             let addr_8080 = format!("{}:8080", args.address);
             tokio::net::TcpListener::bind(&addr_8080).await.expect("Failed to bind to port 8080")
